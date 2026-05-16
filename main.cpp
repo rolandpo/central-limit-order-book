@@ -21,24 +21,26 @@ struct Trade {
 
 class OrderBook{
 public:
-  void insert(Order order) {
-    match(order);
+  std::vector<Trade> insert(Order order) {
+    std::vector<Trade> trades;
+    match(order, trades);
     if (order.quantity > 0)
       place(order);
+    return trades;
   };
 private:
   std::map<double, std::queue<Order>, std::greater<double>> bids_;
   std::map<double, std::queue<Order>, std::less<double>> asks_;
 
-  void match(Order& incoming) {
+  void match(Order& incoming, std::vector<Trade>& trades) {
     if (incoming.side == Side::Buy)
-      match_against(incoming, asks_);
+      match_against(incoming, asks_, trades);
     else
-      match_against(incoming, bids_);
+      match_against(incoming, bids_, trades);
   }
 
   template<typename Map>
-  void match_against(Order& incoming, Map& opposite) {
+  void match_against(Order& incoming, Map& opposite, std::vector<Trade>& trades) {
     while (incoming.quantity > 0 && !opposite.empty()) {
       auto it = opposite.begin();
 
@@ -58,7 +60,7 @@ private:
 
         t.buy_order_id = (incoming.side == Side::Buy) ? incoming.id : resting.id;
         t.sell_order_id = (incoming.side == Side::Sell) ? incoming.id : resting.id;
-        print_trade(t);
+        trades.push_back(t);
 
         incoming.quantity -= fill;
         resting.quantity -= fill;
@@ -77,14 +79,6 @@ private:
     else
       asks_[o.price].push(o);
   }
-
-  static void print_trade(const Trade& t) {
-    std::cout << "TRADE"
-      << "  buy=" << t.buy_order_id
-      << "  sell=" << t.sell_order_id
-      << "  px=" << t.price
-      << "  qty=" << t.quantity << "\n";
-  }
 };
 
 int main() {
@@ -95,11 +89,18 @@ int main() {
   book.insert({2, Side::Sell, 100.0, 5});
   book.insert({3, Side::Buy, 99.0, 8});
 
+  for (const auto& t : book.insert({4, Side::Buy, 101.0, 12})) {
+    std::cout << "TRADE"
+      << "  buy=" << t.buy_order_id
+      << "  sell=" << t.sell_order_id
+      << "  px=" << t.price
+      << "  qty=" << t.quantity << "\n";
+  }
+
   // buy, limit 101, qty 12
   // matches 5 @ 100 against order 2 (fully fills order 2)
   // matches 7 @ 101 against order 1 (partial fill, order 1 has 3 remaining
   // nothing left to rest
-  book.insert({4, Side::Buy, 101.0, 12});
 
   return 0;
 }
